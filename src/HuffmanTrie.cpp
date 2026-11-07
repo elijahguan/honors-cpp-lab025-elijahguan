@@ -24,83 +24,140 @@ bool HuffmanNode::isLeaf() const {
 std::shared_ptr<HuffmanNode> buildHuffmanTree(
     const std::unordered_map<char, std::size_t>& frequencies) {
 
-    // TODO: Implement the Huffman greedy algorithm.
-    //
-    // 1. Create one leaf node for each character.
-    // 2. Insert all nodes into a min-priority queue ordered by frequency.
-    // 3. Repeatedly remove the two least-frequent nodes.
-    // 4. Create a new internal node whose frequency is their sum.
-    // 5. Insert the new node back into the priority queue.
-    // 6. Continue until only one node remains.
-    //
-    // Handle an empty frequency table and the single-character case.
-    //
-    // Do not use a sorting-based shortcut in place of the priority queue.
+    if (frequencies.empty()) {
+        return nullptr;
+    }
 
-    (void)frequencies;
+    auto compare = [](const std::shared_ptr<HuffmanNode>& a,
+                      const std::shared_ptr<HuffmanNode>& b) {
+        return a->frequency > b->frequency;
+    };
 
-    throw std::logic_error("TODO: implement buildHuffmanTree");
+    std::priority_queue<
+        std::shared_ptr<HuffmanNode>,
+        std::vector<std::shared_ptr<HuffmanNode>>,
+        decltype(compare)> nodes(compare);
+
+    for (const auto& entry : frequencies) {
+        nodes.push(std::make_shared<HuffmanNode>(entry.first, entry.second));
+    }
+
+    while (nodes.size() > 1) {
+        auto left = nodes.top();
+        nodes.pop();
+
+        auto right = nodes.top();
+        nodes.pop();
+
+        auto parent = std::make_shared<HuffmanNode>(
+            left->frequency + right->frequency,
+            left,
+            right);
+
+        nodes.push(parent);
+    }
+
+    return nodes.top();
 }
 
 std::unordered_map<char, std::string> generateHuffmanCodes(
     const std::shared_ptr<HuffmanNode>& root) {
 
-    // TODO: Traverse the Huffman tree to generate codes.
-    //
-    // Convention:
-    //   left edge  -> '0'
-    //   right edge -> '1'
-    //
-    // A leaf represents one character.
-    // Store the complete bit string for each character.
-    //
-    // Special case:
-    //   If the tree contains only one character, assign a valid
-    //   non-empty code such as "0".
+    std::unordered_map<char, std::string> codes;
 
-    (void)root;
+    if (!root) {
+        return codes;
+    }
 
-    throw std::logic_error("TODO: implement generateHuffmanCodes");
+    std::vector<std::pair<std::shared_ptr<HuffmanNode>, std::string>> pending;
+    pending.push_back({root, ""});
+
+    while (!pending.empty()) {
+        auto current = pending.back();
+        pending.pop_back();
+
+        if (current.first->isLeaf()) {
+            // A single-character tree needs a non-empty code.
+            codes[current.first->character] =
+                current.second.empty() ? "0" : current.second;
+        } else {
+            if (current.first->right) {
+                pending.push_back({current.first->right, current.second + "1"});
+            }
+            if (current.first->left) {
+                pending.push_back({current.first->left, current.second + "0"});
+            }
+        }
+    }
+
+    return codes;
 }
 
 std::string huffmanEncode(
     const std::string& text,
     const std::unordered_map<char, std::string>& codes) {
 
-    // TODO: Replace every character with its Huffman code.
-    //
-    // The function should preserve character order and concatenate
-    // the corresponding bit strings.
-    //
-    // Throw an exception if the input contains a character for which
-    // no Huffman code exists.
+    std::string encoded;
 
-    (void)text;
-    (void)codes;
+    for (char ch : text) {
+        auto it = codes.find(ch);
+        if (it == codes.end()) {
+            throw std::invalid_argument("No Huffman code for input character");
+        }
+        encoded += it->second;
+    }
 
-    throw std::logic_error("TODO: implement huffmanEncode");
+    return encoded;
 }
 
 std::string huffmanDecode(
     const std::string& encoded,
     const std::shared_ptr<HuffmanNode>& root) {
 
-    // TODO: Decode the bit string by traversing the Huffman tree.
-    //
-    // '0' means move left.
-    // '1' means move right.
-    //
-    // Whenever a leaf is reached, append its character and return
-    // to the root for the next encoded character.
-    //
-    // Reject invalid bit strings.
-    // Handle the single-character tree correctly.
+    if (!root) {
+        throw std::invalid_argument("Cannot decode without a Huffman tree");
+    }
 
-    (void)encoded;
-    (void)root;
+    std::string decoded;
 
-    throw std::logic_error("TODO: implement huffmanDecode");
+    if (root->isLeaf()) {
+        for (char bit : encoded) {
+            if (bit != '0') {
+                throw std::invalid_argument("Invalid bit for single-character tree");
+            }
+            decoded += root->character;
+        }
+        return decoded;
+    }
+
+    auto current = root;
+
+    for (char bit : encoded) {
+        if (bit == '0') {
+            current = current->left;
+        } else if (bit == '1') {
+            current = current->right;
+        } else {
+            throw std::invalid_argument("Encoded string contains a non-bit character");
+        }
+
+        if (!current) {
+            throw std::invalid_argument("Encoded string follows an invalid tree path");
+        }
+
+        if (current->isLeaf()) {
+            decoded += current->character;
+            current = root;
+        }
+    }
+
+    if (current != root) {
+        throw std::invalid_argument("Encoded string ends partway through a code");
+    }
+
+    return decoded;
 }
+
 
 
 // --------------------------------------------------
@@ -112,48 +169,63 @@ Trie::Trie()
 }
 
 void Trie::insert(const std::string& word) {
+    TrieNode* node = root.get();
 
-    // TODO: Insert the word character by character.
-    //
-    // Create a child node when the required edge does not exist.
-    // Mark the final node as a complete word.
-    //
-    // Empty-string behavior should be handled consistently.
+    for (char ch : word) {
+        auto& child = node->children[ch];
+        if (!child) {
+            child = std::make_unique<TrieNode>();
+        }
+        node = child.get();
+    }
 
-    (void)word;
+    node->isWord = true;
 }
 
 bool Trie::contains(const std::string& word) const {
+    const TrieNode* node = root.get();
 
-    // TODO: Traverse the trie one character at a time.
-    // Return true only when the complete word was inserted.
+    for (char ch : word) {
+        auto it = node->children.find(ch);
+        if (it == node->children.end()) {
+            return false;
+        }
+        node = it->second.get();
+    }
 
-    (void)word;
-
-    return false;
+    return node->isWord;
 }
 
 bool Trie::startsWith(const std::string& prefix) const {
+    const TrieNode* node = root.get();
 
-    // TODO: Traverse the trie using the prefix.
-    // Return true if the prefix path exists.
+    for (char ch : prefix) {
+        auto it = node->children.find(ch);
+        if (it == node->children.end()) {
+            return false;
+        }
+        node = it->second.get();
+    }
 
-    (void)prefix;
-
-    return false;
+    return true;
 }
 
 std::vector<std::string> Trie::wordsWithPrefix(
     const std::string& prefix) const {
 
-    // TODO: Find the node representing prefix, then recursively
-    // collect all complete words below that node.
-    //
-    // Return complete words, not just suffixes.
+    const TrieNode* node = root.get();
 
-    (void)prefix;
+    for (char ch : prefix) {
+        auto it = node->children.find(ch);
+        if (it == node->children.end()) {
+            return {};
+        }
+        node = it->second.get();
+    }
 
-    return {};
+    std::vector<std::string> results;
+    collectWords(node, prefix, results);
+    return results;
 }
 
 void Trie::collectWords(
@@ -161,12 +233,15 @@ void Trie::collectWords(
     const std::string& current,
     std::vector<std::string>& results) const {
 
-    // TODO: Recursively traverse descendants of node.
-    //
-    // Add current to results when node->isWord is true.
-    // Continue through every child.
+    if (!node) {
+        return;
+    }
 
-    (void)node;
-    (void)current;
-    (void)results;
+    if (node->isWord) {
+        results.push_back(current);
+    }
+
+    for (const auto& child : node->children) {
+        collectWords(child.second.get(), current + child.first, results);
+    }
 }
